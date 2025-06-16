@@ -8,29 +8,29 @@ on:
 
 jobs:
   test:
-    name: "Tests automatisés Laravel"
+    name: "Tests Laravel"
     runs-on: ubuntu-latest
 
     steps:
       - name: Cloner le dépôt
         uses: actions/checkout@v3
 
-      - name: Configurer PHP
+      - name: Installer PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
           extensions: mbstring, pdo_mysql, xml
 
-      - name: Installer Composer
+      - name: Installer les dépendances
         run: composer install --prefer-dist --no-progress --no-interaction
 
-      - name: Copier .env de test
+      - name: Copier .env
         run: cp .env.example .env
 
       - name: Générer la clé
         run: php artisan key:generate
 
-      - name: Lancer les migrations SQLite (mémoire)
+      - name: Migrations SQLite en mémoire
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: ':memory:'
@@ -38,28 +38,3 @@ jobs:
 
       - name: Lancer les tests
         run: php artisan test
-
-  deploy:
-    name: "Déploiement automatique"
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Cloner le dépôt
-        uses: actions/checkout@v3
-
-      - name: Déployer via SSH
-        uses: appleboy/ssh-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          script: |
-            cd /var/www/inscriptions
-            git pull origin main
-            composer install --no-dev --optimize-autoloader
-            php artisan migrate --force
-            php artisan config:cache
-            php artisan route:cache
