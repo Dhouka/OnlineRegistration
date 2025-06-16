@@ -1,0 +1,65 @@
+name: CI/CD Laravel
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: "Tests automatisés Laravel"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Cloner le dépôt
+        uses: actions/checkout@v3
+
+      - name: Configurer PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring, pdo_mysql, xml
+
+      - name: Installer Composer
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Copier .env de test
+        run: cp .env.example .env
+
+      - name: Générer la clé
+        run: php artisan key:generate
+
+      - name: Lancer les migrations SQLite (mémoire)
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+        run: php artisan migrate --force
+
+      - name: Lancer les tests
+        run: php artisan test
+
+  deploy:
+    name: "Déploiement automatique"
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Cloner le dépôt
+        uses: actions/checkout@v3
+
+      - name: Déployer via SSH
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd /var/www/inscriptions
+            git pull origin main
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
